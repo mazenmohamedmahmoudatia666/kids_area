@@ -10,10 +10,7 @@ const pool = new Pool({
   host: process.env.DB_HOST,
   database: process.env.DB_NAME,
   password: process.env.DB_PASSWORD,
-  port: Number(process.env.DB_PORT), // ← ✅ حولها لـ Number
-  ssl: {
-    rejectUnauthorized: false, // ✅ تمام كده لـ Railway
-  },
+  port: process.env.DB_PORT,
 });
 
 // 4. تصدير الاتصال علشان نستخدمه في ملفات تانية
