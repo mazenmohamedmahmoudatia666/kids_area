@@ -7,7 +7,7 @@ router.post("/checkin", async (req, res) => {
   try {
     const {
       name,
-      entry_id,
+      card_number,
       primary_phone,
       secondary_phone,
       children_count,
@@ -23,21 +23,21 @@ router.post("/checkin", async (req, res) => {
     }
 
     // 1. إدخال الطفل أو التحقق إذا كان موجود مسبقًا
-    const findChildQuery = `SELECT * FROM children WHERE entry_id = $1`;
-    const childResult = await db.query(findChildQuery, [entry_id]);
+    const findChildQuery = `SELECT * FROM children WHERE card_number = $1`;
+    const childResult = await db.query(findChildQuery, [card_number]);
 
     let child;
     if (childResult.rows.length > 0) {
       child = childResult.rows[0];
     } else {
       const insertChildQuery = `
-        INSERT INTO children (name, entry_id, primary_phone, secondary_phone, children_count, points, total_points_spent)
+        INSERT INTO children (name, card_number, primary_phone, secondary_phone, children_count, points, total_points_spent)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *;
       `;
       const newChildResult = await db.query(insertChildQuery, [
         name,
-        entry_id,
+        card_number,
         primary_phone,
         secondary_phone,
         children_count,
@@ -58,13 +58,18 @@ router.post("/checkin", async (req, res) => {
     // 4. وقت البداية
     let sessionStartTime;
     if (start_time) {
-      const [hours, minutes] = start_time.split(":").map(Number);
-      const today = new Date();
-      today.setHours(hours, minutes || 0, 0, 0);
-      sessionStartTime = today;
+      // إذا أرسل start_time كتاريخ ووقت كامل، استخدمه كما هو
+      sessionStartTime = new Date(start_time);
     } else {
       sessionStartTime = new Date();
     }
+
+    // حساب ترتيب الدخول في اليوم
+    const todayStr = sessionStartTime.toISOString().slice(0, 10); // yyyy-mm-dd
+    const countQuery = `SELECT COUNT(*) FROM sessions WHERE DATE(start_time) = $1`;
+    const countResult = await db.query(countQuery, [todayStr]);
+    const todayOrder = parseInt(countResult.rows[0].count) + 1; // القادم هو التالي
+    const receipt_number = `${todayStr.replace(/-/g, "")}${todayOrder}`;
 
     // 5. نحدث total_points_spent للطفل
     await db.query(
@@ -90,12 +95,22 @@ router.post("/checkin", async (req, res) => {
 
     const session = sessionResult.rows[0];
 
+    const checkoutDate = new Date(session.start_time);
+    checkoutDate.setMinutes(checkoutDate.getMinutes() + session.duration_min);
+
     res.status(201).json({
-      message: "Child checked in successfully.",
-      points_deducted: pointsDeducted,
-      total_points_spent: child.total_points_spent + pointsDeducted,
-      child,
-      session,
+      message: "تم تسجيل الدخول بنجاح",
+      data: {
+        child_name: child.name,
+        parent_phone: child.primary_phone,
+        session_receipt: receipt_number,
+        card_number: child.card_number,
+        checkin_time: session.start_time,
+        duration_minutes: session.duration_min,
+        children_count: session.children_count,
+        points_used: session.points_deducted,
+        expected_checkout: checkoutDate,
+      },
     });
   } catch (err) {
     console.error("checkin error:", err);

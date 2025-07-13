@@ -5,6 +5,7 @@ const summaryRoutes = require("./routes/summary");
 const childrenRoutes = require("./routes/children");
 const statsRoutes = require("./routes/stats");
 const pointsRoutes = require("./routes/points");
+const dashboardRoutes = require("./routes/dashboard");
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use("/", summaryRoutes);
 app.use("/", childrenRoutes);
 app.use("/", statsRoutes);
 app.use("/", pointsRoutes);
+app.use("/", dashboardRoutes);
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
